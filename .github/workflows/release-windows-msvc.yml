@@ -1,0 +1,75 @@
+# Windows (MSVC) release workflow for this fork.
+#
+# This is NOT an upstream file. It builds the self-contained x64 git-crypt.exe
+# (static CRT + BCrypt backend, no MSVC runtime, no OpenSSL) using win-build/,
+# and publishes it to a GitHub Release when a v* tag is pushed.
+#
+# Distinct filename + tag trigger so it never collides with upstream's
+# release-windows.yml (MSYS2/MinGW, triggered on release:published).
+#
+# Note: this workflow CREATES a release, which emits a `release: published`
+# event. If you have enabled the upstream release-* workflows on this fork,
+# they will also fire. To run only this one, disable the others in the fork's
+# Actions tab (UI toggle, no file edit needed — keeps upstream merges clean).
+name: Release (Windows MSVC)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:        # manual run = build + artifact only (no release)
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build x64 (static CRT, BCrypt)
+    runs-on: windows-latest   # ships VS2022 + MSVC + cmake + ninja; no extra installs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build git-crypt.exe
+        shell: cmd
+        run: win-build\build.cmd clean
+
+      - name: Compute SHA256
+        shell: pwsh
+        run: |
+          $exe = 'win-build/dist/git-crypt.exe'
+          if (-not (Test-Path $exe)) { throw "missing build output: $exe" }
+          $h = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$h  git-crypt.exe" | Set-Content 'win-build/dist/git-crypt.exe.sha256' -Encoding ascii
+          Write-Host "SHA256: $h"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: git-crypt-windows-x64
+          path: |
+            win-build/dist/git-crypt.exe
+            win-build/dist/git-crypt.exe.sha256
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @(
+            'Self-contained x64 Windows build of git-crypt.',
+            '',
+            '- Static CRT (/MT) - no MSVC runtime required',
+            '- Windows-native BCrypt crypto backend - no OpenSSL required',
+            '- Depends only on Windows system DLLs (bcrypt.dll, KERNEL32.dll)',
+            '',
+            'Verify the download with the included git-crypt.exe.sha256.'
+          )
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
+          gh release create "$env:GITHUB_REF_NAME" `
+            'win-build/dist/git-crypt.exe' `
+            'win-build/dist/git-crypt.exe.sha256' `
+            --title "git-crypt $env:GITHUB_REF_NAME (Windows x64)" `
+            --notes-file release-notes.md

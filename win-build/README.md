@@ -108,6 +108,30 @@ full BCrypt AES-CTR + HMAC-SHA1 + RNG paths through git's own filter pipeline.
 
 ---
 
+## Releases (CI)
+
+[`.github/workflows/release-windows-msvc.yml`](../.github/workflows/release-windows-msvc.yml)
+builds this exe on GitHub's `windows-latest` runner (VS + cmake + ninja are
+preinstalled — no extra setup, since we need no OpenSSL) and publishes it to a
+GitHub Release.
+
+- **Trigger:** push a `v*` tag, e.g.:
+  ```cmd
+  git tag v0.8.0-win1
+  git push origin v0.8.0-win1
+  ```
+  The workflow builds, computes a SHA256, and creates a Release with
+  `git-crypt.exe` + `git-crypt.exe.sha256` attached.
+- **Manual run** (`workflow_dispatch`, from the Actions tab) builds and uploads
+  the artifact but does **not** create a release.
+- The workflow file must live in `.github/workflows/` (GitHub requirement) — the
+  only piece of our config that can't sit under `win-build/`. It has a distinct
+  name and tag trigger, so it never collides with upstream's `release-windows.yml`
+  (MSYS2/MinGW).
+- Creating a release emits a `release: published` event. If you've enabled the
+  upstream `release-*` workflows on the fork, they'll also fire — disable them in
+  the fork's **Actions** tab (UI toggle, no file edit, merge stays clean).
+
 ## Keeping in sync with upstream
 
 The strategy is: **upstream files change as little as possible; our stuff is
