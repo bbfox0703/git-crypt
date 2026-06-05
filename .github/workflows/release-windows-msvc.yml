@@ -63,7 +63,8 @@ jobs:
             '',
             '- Static CRT (/MT) - no MSVC runtime required',
             '- Windows-native BCrypt crypto backend - no OpenSSL required',
-            '- Depends only on Windows system DLLs (bcrypt.dll, KERNEL32.dll)',
+            '- Key/temp files locked to the current user (owner-only ACL)',
+            '- Depends only on Windows system DLLs (bcrypt.dll, advapi32.dll, KERNEL32.dll)',
             '',
             'Verify the download with the included git-crypt.exe.sha256.'
           )

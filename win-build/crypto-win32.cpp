@@ -185,6 +185,12 @@ Hmac_sha1_state::~Hmac_sha1_state ()
 	if (impl->alg) {
 		BCryptCloseAlgorithmProvider(impl->alg, 0);
 	}
+	// Wipe the residual HMAC key material left in the hash object buffer.
+	// BCryptDestroyHash is not documented to zero the caller-supplied buffer,
+	// so do it ourselves -- mirrors the key_object wipe in the AES path above.
+	if (!impl->hash_object.empty()) {
+		explicit_memset(&impl->hash_object[0], '\0', impl->hash_object.size());
+	}
 }
 
 void Hmac_sha1_state::add (const unsigned char* buffer, size_t buffer_len)

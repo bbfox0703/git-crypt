@@ -66,8 +66,10 @@ target_compile_definitions(git-crypt PRIVATE
 # keeps MSVC from guessing the codepage). /EHsc: standard C++ exceptions.
 target_compile_options(git-crypt PRIVATE /utf-8 /EHsc /W3)
 
-# bcrypt.dll is a Windows system component -- linking it adds no redistributable.
-target_link_libraries(git-crypt PRIVATE bcrypt)
+# bcrypt.dll (crypto) and advapi32.dll (process token + ACL APIs used to lock
+# down key files / temp files to the current user) are Windows system
+# components -- linking them adds no redistributable.
+target_link_libraries(git-crypt PRIVATE bcrypt advapi32)
 
 set_target_properties(git-crypt PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"

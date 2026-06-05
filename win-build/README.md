@@ -9,7 +9,9 @@ The produced exe:
 - is **x64**,
 - **statically links the MSVC CRT** (`/MT`) — no VC++ Redistributable needed,
 - uses a **Windows-native crypto backend (CNG / BCrypt)** — no OpenSSL needed,
-- depends only on `bcrypt.dll` + `KERNEL32.dll` (both are Windows system DLLs).
+- depends only on `bcrypt.dll`, `advapi32.dll` + `KERNEL32.dll` (all Windows
+  system DLLs; `advapi32` is used for the process-token / ACL calls that lock
+  key and temp files down to the current user — see [Security hardening](#security-hardening-windows)).
 
 ---
 
@@ -80,9 +82,9 @@ The file lives here (not in the repo root) so it never collides with upstream.
 
 ## Required source modifications (in the upstream tree)
 
-These are the **only** edits made to upstream files. They are portability fixes
-that are also correct on Unix, so they should merge cleanly and could even be
-contributed upstream:
+These are the edits made to upstream files. Items 1–3 are portability fixes that
+are also correct on Unix (they should merge cleanly and could be contributed
+upstream); item 4 is Windows-only security hardening:
 
 1. **`git-crypt.cpp`** — guard `#include <unistd.h>` with `#ifndef _WIN32`
    (MSVC has no `<unistd.h>`).
@@ -93,11 +95,50 @@ contributed upstream:
    otherwise types the unscoped enum as `int` and **truncates it to 0**, which
    makes git-crypt reject every non-empty file ("file too long to encrypt
    securely"). GCC/Clang widen it automatically, so this is invisible on Unix.
+4. **`util-win32.cpp`** — Windows security hardening (owner-only DACL for key
+   and temp files; HMAC key-buffer wipe). This is Windows-only code, so any
+   future upstream conflict is confined to `create_protected_file()` and
+   `temp_fstream::open()`. Details in [Security hardening](#security-hardening-windows).
+   (Upstream's Windows `create_protected_file()` is an empty stub, so upstream's
+   own MinGW build shares the key-permissions weakness this fixes.)
 
 Everything else (build system, crypto backend, scripts, docs) is additive and
 lives under `win-build/`.
 
 ---
+
+## Security hardening (Windows)
+
+The Windows-native paths (BCrypt backend in `crypto-win32.cpp`, plus the platform
+helpers in upstream `util-win32.cpp`) were hardened so the Windows build matches
+the security properties of the Unix build:
+
+- **Key files are created owner-only.** `create_protected_file()` (used by
+  `git-crypt init`, `export-key`, `add-gpg-user`, …) now creates the key file
+  with an explicit DACL granting **only the current user** and blocking inherited
+  ACEs (`SE_DACL_PROTECTED`) — the Windows analogue of Unix `0600`. Previously it
+  was an empty `// TODO`, so the key inherited the parent directory's ACL. On
+  many drives (e.g. a secondary `D:`) that grants `BUILTIN\Users:(R)` /
+  `Authenticated Users:(M)`, which left the repo's **master key readable by every
+  local user**. Verified with `icacls`: the resulting key file shows only
+  `<user>:(F)` and no inherited entries.
+- **Plaintext temp files are locked down.** When a file larger than ~8 MB is
+  encrypted, the overflow spills to a temp file in `%TEMP%`. It is now created
+  owner-only (same DACL, via `SetNamedSecurityInfo`) and flagged
+  `FILE_ATTRIBUTE_TEMPORARY`, and is deleted on close.
+  *Residual:* `std::fstream` cannot share `FILE_FLAG_DELETE_ON_CLOSE`, so an
+  abnormal termination (crash/kill) can still strand the temp file — unlike Unix,
+  which `unlink()`s it immediately after open. The leftover is owner-only and
+  temporary-attributed (so other users cannot read it), but it is not auto-removed
+  on crash. Closing this gap fully would require replacing `temp_fstream`'s
+  `std::fstream` base with a native `HANDLE`.
+- **HMAC key material is wiped.** `Hmac_sha1_state`'s destructor now
+  `explicit_memset`s the CNG hash-object buffer (which holds the HMAC key),
+  matching the AES key-object wipe already present in the same file.
+
+These add a link-time dependency on `advapi32.dll` (process-token + ACL APIs),
+a core Windows system DLL — the self-contained / no-redistributable guarantee is
+unchanged.
 
 ## Verified
 
