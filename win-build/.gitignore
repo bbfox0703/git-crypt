@@ -1,0 +1,5 @@
+# Build + distribution output for the Windows build live here and are
+# never committed. Keeping this .gitignore inside win-build/ avoids touching
+# the upstream root .gitignore (cleaner upstream merges).
+build/
+dist/

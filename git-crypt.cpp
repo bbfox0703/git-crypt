@@ -36,7 +36,9 @@
 #include "gpg.hpp"
 #include "parse_options.hpp"
 #include <cstring>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <iostream>
 #include <string.h>
 

@@ -35,7 +35,14 @@
 #include "gpg.hpp"
 #include "parse_options.hpp"
 #include "coprocess.hpp"
+#ifdef _WIN32
+#include <io.h>            // _access / access
+#ifndef F_OK
+#define F_OK 0             // not defined by MSVC's <io.h>
+#endif
+#else
 #include <unistd.h>
+#endif
 #include <stdint.h>
 #include <algorithm>
 #include <string>

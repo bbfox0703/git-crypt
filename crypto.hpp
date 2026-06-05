@@ -67,7 +67,10 @@ public:
 
 class Aes_ctr_encryptor {
 public:
-	enum {
+	// Fixed 64-bit underlying type: MAX_CRYPT_BYTES is 2^36, which overflows
+	// the int that MSVC otherwise picks for an unscoped enum (truncating it to
+	// 0 and rejecting every file). GCC/Clang already widen this automatically.
+	enum : unsigned long long {
 		NONCE_LEN	= 12,
 		KEY_LEN		= AES_KEY_LEN,
 		BLOCK_LEN	= 16,
