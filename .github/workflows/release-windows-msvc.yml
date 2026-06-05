@@ -25,12 +25,13 @@ permissions:
 jobs:
   build:
     name: Build x64 (static CRT, BCrypt)
-    # Pinned (not windows-latest): GitHub is redirecting windows-latest to a
-    # VS2026 image by 2026-06-15, and we want the runner chosen explicitly, not
-    # silently swapped under us. windows-2025 ships VS2022 + MSVC + cmake + ninja
-    # (no extra installs); build.ps1 discovers VS via vswhere, so it also works
-    # on the VS2026 image if we later bump to windows-2025-vs2026.
-    runs-on: windows-2025
+    # Pinned to the explicit VS2026 image label. GitHub is redirecting BOTH
+    # windows-latest AND windows-2025 to windows-2025-vs2026 by 2026-06-15, so
+    # pinning windows-2025 would still be swapped under us; the -vs2026 label is
+    # the redirect *target*, so it stays put. It ships VS2026 + cmake + ninja
+    # (no extra installs); build.ps1 discovers VS via vswhere, so the build is
+    # toolchain-version-agnostic (verified green on VS2026).
+    runs-on: windows-2025-vs2026
     steps:
       - name: Checkout
         uses: actions/checkout@v6
